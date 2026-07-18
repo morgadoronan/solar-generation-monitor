@@ -27,7 +27,8 @@ After `uv sync --frozen --no-editable --reinstall-package solar-generation-monit
 Production commands write candidate state to `SOLAR_STATE_OUTPUT_PATH`; a workflow uploads it as
 `solar-monitor-state-v1` only after a successful non-dry execution. Monthly reports reconstruct
 generation from ShineMonitor and combine it with interruption/coverage state, then upload a
-sanitized CSV.
+sanitized CSV. Provider failures isolated to individual historical days produce blank CSV values
+and incomplete coverage rather than aborting the whole monthly reconstruction.
 
 ## Policy model
 

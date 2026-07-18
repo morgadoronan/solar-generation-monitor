@@ -54,7 +54,7 @@ def client(
     *,
     password: str = CANARY,
     sleep: Any = None,
-    retries: int = 2,
+    retries: int = 3,
 ) -> RenovigiClient:
     kwargs: dict[str, Any] = {}
     if sleep is not None:
@@ -217,8 +217,25 @@ def test_transient_transport_failure_has_bounded_retry_and_backoff() -> None:
     result = client(transport, sleep=sleeps.append).get_current_power(FIXED_NOW)
 
     assert result is not None
-    assert sleeps == [0.25]
-    assert transport.timeouts == [15.0, 15.0, 15.0]
+    assert sleeps == [1.0]
+    assert transport.timeouts == [30.0, 30.0, 30.0]
+
+
+def test_default_retry_budget_survives_three_consecutive_transport_timeouts() -> None:
+    sleeps: list[float] = []
+    transport = FakeTransport(
+        response("auth_success.json"),
+        TimeoutError("timeout one"),
+        TimeoutError("timeout two"),
+        TimeoutError("timeout three"),
+        response("current_power.json"),
+    )
+
+    result = client(transport, sleep=sleeps.append).get_current_power(FIXED_NOW)
+
+    assert result is not None
+    assert sleeps == [1.0, 2.0, 4.0]
+    assert transport.timeouts == [30.0] * 5
 
 
 def test_transient_provider_timeout_is_retried() -> None:

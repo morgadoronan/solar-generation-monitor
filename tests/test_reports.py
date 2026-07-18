@@ -6,6 +6,7 @@ import pytest
 from solar_monitor.dry_run import DRY_RUN_PLANT_ID, DRY_RUN_TIMEZONE, SyntheticProvider
 from solar_monitor.github_state import MemoryStateStore
 from solar_monitor.models import GenerationDay, Notification, WeatherDay
+from solar_monitor.ports import ProviderError
 from solar_monitor.reports import DayReport, MonthlyReport, previous_month, render_csv
 from solar_monitor.service import MonthlyReportService
 from solar_monitor.state import (
@@ -27,6 +28,44 @@ class CompleteMonthlyProvider:
     def get_weather_day(self, day: date) -> WeatherDay:
         sunrise = datetime(day.year, day.month, day.day, 6, tzinfo=ZONE)
         return WeatherDay(day, sunrise, sunrise.replace(hour=18), 43200, 43200, 0, 20, True)
+
+
+class PartiallyUnavailableMonthlyProvider(CompleteMonthlyProvider):
+    def get_generation_day(self, day: date) -> GenerationDay:
+        if day == date(2026, 6, 3):
+            raise ProviderError("generation unavailable")
+        return super().get_generation_day(day)
+
+    def get_weather_day(self, day: date) -> WeatherDay:
+        if day == date(2026, 6, 4):
+            raise ProviderError("weather unavailable")
+        return super().get_weather_day(day)
+
+
+class BaselineUnavailableMonthlyProvider(CompleteMonthlyProvider):
+    def get_generation_day(self, day: date) -> GenerationDay:
+        if day == date(2026, 5, 7):
+            raise ProviderError("baseline generation unavailable")
+        return super().get_generation_day(day)
+
+    def get_weather_day(self, day: date) -> WeatherDay:
+        if day == date(2026, 5, 7):
+            raise ProviderError("baseline weather unavailable")
+        return super().get_weather_day(day)
+
+
+class UnavailableMonthlyProvider:
+    def __init__(self) -> None:
+        self.generation_calls = 0
+        self.weather_calls = 0
+
+    def get_generation_day(self, day: date) -> GenerationDay:
+        self.generation_calls += 1
+        raise ProviderError("generation unavailable")
+
+    def get_weather_day(self, day: date) -> WeatherDay:
+        self.weather_calls += 1
+        raise ProviderError("weather unavailable")
 
 
 class Recorder:
@@ -161,3 +200,74 @@ def test_monthly_availability_merges_interruptions_and_counts_only_intersecting_
     assert report.availability_percent == pytest.approx(100 * (720 - 5) / 720)
     assert report.coverage_gap_count == 2
     assert report.coverage_complete is False
+
+
+def test_monthly_report_keeps_partial_provider_data_and_marks_missing_days() -> None:
+    provider = PartiallyUnavailableMonthlyProvider()
+    service = MonthlyReportService(
+        provider,
+        provider,
+        MemoryStateStore(),
+        source=SourceMetadata("monthly-run", "Monthly Report"),
+        plant_id="plant",
+        timezone=ZONE,
+        csv_path=None,
+        clock=lambda: datetime(2026, 7, 1, 8, tzinfo=ZONE),
+    )
+
+    report = service.run(date(2026, 6, 1))
+
+    assert report.total_kwh == 290.0
+    assert report.coverage_complete is False
+    assert report.coverage_gap_count == 2
+    assert report.days[2].energy_kwh is None
+    assert report.days[2].complete is False
+    assert report.days[3].energy_kwh == 10.0
+    assert report.days[3].complete is False
+    assert "29/30 generation days" in report.telegram_text
+
+
+def test_monthly_report_continues_when_performance_baseline_is_unavailable() -> None:
+    provider = BaselineUnavailableMonthlyProvider()
+    service = MonthlyReportService(
+        provider,
+        provider,
+        MemoryStateStore(),
+        source=SourceMetadata("monthly-run", "Monthly Report"),
+        plant_id="plant",
+        timezone=ZONE,
+        csv_path=None,
+        baseline_day=date(2026, 5, 7),
+        clock=lambda: datetime(2026, 7, 1, 8, tzinfo=ZONE),
+    )
+
+    report = service.run(date(2026, 6, 1))
+
+    assert report.total_kwh == 300.0
+    assert report.coverage_complete is True
+    assert report.coverage_gap_count == 0
+    assert report.best_day is None
+    assert report.worst_day is None
+
+
+def test_monthly_report_stops_calling_provider_after_three_consecutive_failures() -> None:
+    provider = UnavailableMonthlyProvider()
+    service = MonthlyReportService(
+        provider,
+        provider,
+        MemoryStateStore(),
+        source=SourceMetadata("monthly-run", "Monthly Report"),
+        plant_id="plant",
+        timezone=ZONE,
+        csv_path=None,
+        clock=lambda: datetime(2026, 7, 1, 8, tzinfo=ZONE),
+    )
+
+    report = service.run(date(2026, 6, 1))
+
+    assert provider.generation_calls == 4  # Baseline plus three monthly attempts.
+    assert provider.weather_calls == 4
+    assert report.total_kwh == 0
+    assert report.coverage_complete is False
+    assert report.coverage_gap_count == 30
+    assert "0/30 generation days" in report.telegram_text

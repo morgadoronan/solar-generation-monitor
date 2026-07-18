@@ -583,14 +583,42 @@ class MonthlyReportService:
         state = decode_or_bootstrap(
             self._store.load_latest(), generated_at=now, source=self._source
         )
-        baseline_generation = self._generation.get_generation_day(self._baseline_day)
-        baseline_weather = self._weather.get_weather_day(self._baseline_day)
+        try:
+            baseline_generation = self._generation.get_generation_day(self._baseline_day)
+        except ProviderError:
+            baseline_generation = None
+        try:
+            baseline_weather = self._weather.get_weather_day(self._baseline_day)
+        except ProviderError:
+            baseline_weather = None
         days: list[DayReport] = []
+        generation_failures = 0
+        weather_failures = 0
+        provider_failure_limit = 3
         cursor = start_day
         while cursor < end_day:
-            generation = self._generation.get_generation_day(cursor)
-            weather = self._weather.get_weather_day(cursor)
-            qualifying = qualify_sunny_day(generation, weather).status is SunnyDayStatus.QUALIFYING
+            generation = None
+            if generation_failures < provider_failure_limit:
+                try:
+                    generation = self._generation.get_generation_day(cursor)
+                except ProviderError:
+                    generation_failures += 1
+                else:
+                    generation_failures = 0
+            weather = None
+            if weather_failures < provider_failure_limit:
+                try:
+                    weather = self._weather.get_weather_day(cursor)
+                except ProviderError:
+                    weather_failures += 1
+                else:
+                    weather_failures = 0
+            qualifying = (
+                generation is not None
+                and weather is not None
+                and qualify_sunny_day(generation, weather).status
+                is SunnyDayStatus.QUALIFYING
+            )
             ratio = (
                 performance_ratio(
                     daily_kwh=generation.energy_kwh,
@@ -598,16 +626,25 @@ class MonthlyReportService:
                     baseline_kwh=baseline_generation.energy_kwh,
                     baseline_radiation_mj_m2=baseline_weather.shortwave_radiation_mj_m2,
                 )
-                if qualifying
+                if (
+                    qualifying
+                    and generation is not None
+                    and weather is not None
+                    and baseline_generation is not None
+                    and baseline_weather is not None
+                )
                 else None
             )
             days.append(
                 DayReport(
                     cursor,
-                    generation.energy_kwh,
+                    generation.energy_kwh if generation is not None else None,
                     ratio,
                     qualifying,
-                    generation.complete and weather.complete,
+                    generation is not None
+                    and weather is not None
+                    and generation.complete
+                    and weather.complete,
                 )
             )
             cursor += timedelta(days=1)
@@ -641,7 +678,7 @@ class MonthlyReportService:
                 0.0, 100 * (month_seconds - interruption_seconds) / month_seconds
             ),
             coverage_complete=not gaps and all(item.complete for item in days),
-            coverage_gap_count=len(gaps),
+            coverage_gap_count=len(gaps) + sum(not item.complete for item in days),
             days=tuple(days),
         )
         if self._csv_path is not None:

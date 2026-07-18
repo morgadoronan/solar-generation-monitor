@@ -29,7 +29,9 @@ Dry runs do not load the production environment, use production state, upload
 - The daily workflow is requested at 03:17 UTC, just after local midnight, and evaluates the
   just-completed previous local day for sunny-day/cleaning evidence.
 - The monthly workflow is requested at 10:43 UTC on the first day of each month and reports the
-  previous local calendar month. It uploads a sanitized CSV as well as sending the summary.
+  previous local calendar month. It uploads a sanitized CSV as well as sending the summary. If an
+  isolated provider day is unavailable after bounded retries, the report preserves the available
+  days and explicitly marks coverage incomplete instead of discarding the entire month.
 
 Cron times are UTC requests, not appointments. GitHub may delay or skip scheduled work; there is
 no exact scheduler SLA. All production jobs share concurrency with cancellation disabled and
@@ -54,7 +56,10 @@ shared devices.
 Authentication failure, session expiry, rate limiting, malformed responses, missing samples,
 stale telemetry, and Open-Meteo outages are provider/telemetry conditions. They are not evidence
 of low production. The service reauthenticates only on explicit expiry and does not retry invalid
-credentials. Missing or stale weather produces an unknown result rather than a production alert.
+credentials. Transient transport failures use bounded exponential retries. Missing or stale
+weather produces an unknown result rather than a production alert. Monthly reconstruction stops
+calling one unavailable provider after three consecutive failed days so a prolonged outage cannot
+consume the entire workflow timeout; the skipped days remain visibly incomplete.
 
 Open-Meteo must be attributed. Its free API is intended for non-commercial use; confirm current
 licensing, attribution, usage limits, and paid-plan requirements before any commercial deployment.

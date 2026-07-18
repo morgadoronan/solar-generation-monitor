@@ -97,9 +97,9 @@ class RenovigiClient:
         transport: HttpTransport | None = None,
         clock: Clock | None = None,
         sleep: Sleeper = time.sleep,
-        timeout_seconds: float = 15.0,
-        transient_retries: int = 2,
-        retry_backoff_seconds: float = 0.25,
+        timeout_seconds: float = 30.0,
+        transient_retries: int = 3,
+        retry_backoff_seconds: float = 1.0,
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")

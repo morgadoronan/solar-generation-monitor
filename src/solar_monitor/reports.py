@@ -38,8 +38,10 @@ class MonthlyReport:
         best = _day_summary(self.best_day)
         worst = _day_summary(self.worst_day)
         coverage = "complete" if self.coverage_complete else "incomplete"
+        generation_days = sum(item.energy_kwh is not None for item in self.days)
         return (
-            f"{self.month:%B %Y}: {self.total_kwh:.2f} kWh generated. "
+            f"{self.month:%B %Y}: {self.total_kwh:.2f} kWh recorded across "
+            f"{generation_days}/{len(self.days)} generation days. "
             f"Availability {self.availability_percent:.2f}% with "
             f"{self.interruption_hours:.2f} interruption hours. "
             f"Best qualifying day {best}; worst {worst}. Coverage {coverage} "
