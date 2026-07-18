@@ -72,8 +72,10 @@ licensing, attribution, usage limits, and paid-plan requirements before any comm
    all six repository variables plus four environment secrets use the exact names documented.
 3. Classify the outcome: provider error, stale generation, stale/missing weather, device offline,
    nighttime, pending evidence, or confirmed interruption. Do not bypass freshness/daylight rules.
-4. Inspect logs for sanitized error categories only. Never print environment variables, signed
-   URLs, raw provider responses, Telegram URLs, or artifact contents.
+4. Inspect logs for the sanitized categories `configuration_error`, `state_error`,
+   `renovigi_auth_error`, `provider_error`, `telegram_error`, or `validation_error`. Never print
+   environment variables, signed URLs, raw provider responses, Telegram URLs, or artifact
+   contents.
 5. For missing/corrupt state, accept the recorded coverage gap and allow evidence to rebuild; do
    not upload a hand-edited older file.
 6. After credential changes, keep live monitoring disabled, rotate affected tokens/passwords,

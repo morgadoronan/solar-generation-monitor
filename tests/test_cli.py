@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from solar_monitor.cli import build_parser, main
+from solar_monitor.github_state import GitHubStateError
+from solar_monitor.ports import InvalidCredentialsError, ProviderError, SessionExpiredError
+from solar_monitor.telegram import TelegramDeliveryError
 
 
 def environment() -> dict[str, str]:
@@ -70,3 +75,42 @@ def test_primary_date_and_month_flags_parse() -> None:
     assert parser.parse_args(["report-month", "--month", "2026-06"]).month.isoformat() == (
         "2026-06-01"
     )
+
+
+def test_configuration_errors_have_a_safe_operational_category(capsys: object) -> None:
+    assert main(["calibrate"], env={}) == 2
+    output = capsys.readouterr().out  # type: ignore[attr-defined]
+
+    assert json.loads(output) == {"reason": "configuration_error", "status": "error"}
+
+
+@pytest.mark.parametrize(
+    ("error", "reason"),
+    (
+        (GitHubStateError("unsafe state detail"), "state_error"),
+        (InvalidCredentialsError("unsafe auth detail"), "renovigi_auth_error"),
+        (SessionExpiredError("unsafe session detail"), "renovigi_auth_error"),
+        (TelegramDeliveryError("unsafe telegram detail"), "telegram_error"),
+        (ProviderError("unsafe provider detail"), "provider_error"),
+        (ValueError("unsafe validation detail"), "validation_error"),
+    ),
+)
+def test_runtime_errors_emit_only_safe_categories(
+    error: Exception, reason: str, monkeypatch: object, capsys: object
+) -> None:
+    values = {
+        **environment(),
+        "ENABLE_LIVE_MONITORING": "true",
+        "TELEGRAM_BOT_TOKEN": "token",
+        "TELEGRAM_CHAT_ID": "chat",
+    }
+
+    def fail(*args: object, **kwargs: object) -> object:
+        raise error
+
+    monkeypatch.setattr("solar_monitor.cli._state_store", fail)  # type: ignore[attr-defined]
+
+    assert main(["monitor"], env=values) == 2
+    output = capsys.readouterr().out  # type: ignore[attr-defined]
+    assert json.loads(output) == {"reason": reason, "status": "error"}
+    assert "unsafe" not in output

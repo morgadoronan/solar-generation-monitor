@@ -28,8 +28,10 @@ from solar_monitor.policies import (
 )
 from solar_monitor.ports import (
     GenerationProvider,
+    InvalidCredentialsError,
     NotificationProvider,
     ProviderError,
+    SessionExpiredError,
     StateStore,
     WeatherProvider,
 )
@@ -151,6 +153,8 @@ class MonitorService:
         try:
             generation = self._generation.get_generation_day(now.date())
             status = self._generation.get_device_status(now)
+        except (InvalidCredentialsError, SessionExpiredError):
+            raise
         except ProviderError:
             return self._provider_failure(state, now, "generation")
         samples = tuple(sample for sample in generation.samples if sample.observed_at <= now)
@@ -461,6 +465,8 @@ class DailyEvaluationService:
             weather = self._weather.get_weather_day(selected)
             baseline_generation = self._generation.get_generation_day(self._baseline_day)
             baseline_weather = self._weather.get_weather_day(self._baseline_day)
+        except (InvalidCredentialsError, SessionExpiredError):
+            raise
         except ProviderError:
             return ServiceResult("provider_failure", detail="daily evaluation provider")
         evidence = CleaningEvidence(
@@ -585,6 +591,8 @@ class MonthlyReportService:
         )
         try:
             baseline_generation = self._generation.get_generation_day(self._baseline_day)
+        except (InvalidCredentialsError, SessionExpiredError):
+            raise
         except ProviderError:
             baseline_generation = None
         try:
@@ -601,6 +609,8 @@ class MonthlyReportService:
             if generation_failures < provider_failure_limit:
                 try:
                     generation = self._generation.get_generation_day(cursor)
+                except (InvalidCredentialsError, SessionExpiredError):
+                    raise
                 except ProviderError:
                     generation_failures += 1
                 else:

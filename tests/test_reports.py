@@ -6,7 +6,7 @@ import pytest
 from solar_monitor.dry_run import DRY_RUN_PLANT_ID, DRY_RUN_TIMEZONE, SyntheticProvider
 from solar_monitor.github_state import MemoryStateStore
 from solar_monitor.models import GenerationDay, Notification, WeatherDay
-from solar_monitor.ports import ProviderError
+from solar_monitor.ports import InvalidCredentialsError, ProviderError
 from solar_monitor.reports import DayReport, MonthlyReport, previous_month, render_csv
 from solar_monitor.service import MonthlyReportService
 from solar_monitor.state import (
@@ -66,6 +66,11 @@ class UnavailableMonthlyProvider:
     def get_weather_day(self, day: date) -> WeatherDay:
         self.weather_calls += 1
         raise ProviderError("weather unavailable")
+
+
+class RejectedCredentialsMonthlyProvider(CompleteMonthlyProvider):
+    def get_generation_day(self, day: date) -> GenerationDay:
+        raise InvalidCredentialsError("credentials rejected")
 
 
 class Recorder:
@@ -271,3 +276,21 @@ def test_monthly_report_stops_calling_provider_after_three_consecutive_failures(
     assert report.coverage_complete is False
     assert report.coverage_gap_count == 30
     assert "0/30 generation days" in report.telegram_text
+
+
+def test_monthly_report_does_not_hide_rejected_credentials_as_missing_days() -> None:
+    generation = RejectedCredentialsMonthlyProvider()
+    weather = CompleteMonthlyProvider()
+    service = MonthlyReportService(
+        generation,
+        weather,
+        MemoryStateStore(),
+        source=SourceMetadata("monthly-run", "Monthly Report"),
+        plant_id="plant",
+        timezone=ZONE,
+        csv_path=None,
+        clock=lambda: datetime(2026, 7, 1, 8, tzinfo=ZONE),
+    )
+
+    with pytest.raises(InvalidCredentialsError):
+        service.run(date(2026, 6, 1))

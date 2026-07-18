@@ -27,7 +27,12 @@ from solar_monitor.github_state import (
     MemoryStateStore,
 )
 from solar_monitor.open_meteo import OpenMeteoClient
-from solar_monitor.ports import ProviderError, StateStore
+from solar_monitor.ports import (
+    InvalidCredentialsError,
+    ProviderError,
+    SessionExpiredError,
+    StateStore,
+)
 from solar_monitor.renovigi import RenovigiClient
 from solar_monitor.service import (
     CalibrationService,
@@ -66,7 +71,7 @@ def main(argv: Sequence[str] | None = None, *, env: dict[str, str] | None = None
             return _emit(_json_value(_run_dry(args)), values)
         except ValueError:
             return _emit(
-                {"status": "error", "reason": "solar monitor command failed"}, values, code=2
+                {"status": "error", "reason": "validation_error"}, values, code=2
             )
     try:
         config = AppConfig.from_env(values)
@@ -128,8 +133,19 @@ def main(argv: Sequence[str] | None = None, *, env: dict[str, str] | None = None
                 ),
             ).run(args.month)
         return _emit(_json_value(result), values)
-    except (ConfigError, GitHubStateError, ProviderError, TelegramDeliveryError, ValueError):
-        return _emit({"status": "error", "reason": "solar monitor command failed"}, values, code=2)
+    except ConfigError:
+        reason = "configuration_error"
+    except GitHubStateError:
+        reason = "state_error"
+    except (InvalidCredentialsError, SessionExpiredError):
+        reason = "renovigi_auth_error"
+    except TelegramDeliveryError:
+        reason = "telegram_error"
+    except ProviderError:
+        reason = "provider_error"
+    except ValueError:
+        reason = "validation_error"
+    return _emit({"status": "error", "reason": reason}, values, code=2)
 
 
 def _state_store(env: dict[str, str]) -> StateStore:
