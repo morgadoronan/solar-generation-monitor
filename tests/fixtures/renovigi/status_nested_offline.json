@@ -1,0 +1,1 @@
+{"err":0,"desc":"ERR_NONE","dat":{"collector":[{"pn":"SYNTHETIC-COLLECTOR","status":1,"device":[{"devcode":512,"devaddr":1,"sn":"SYNTHETIC-DEVICE","status":0},{"devcode":513,"devaddr":2,"sn":"SYNTHETIC-DEVICE-2","status":1}]}]}}

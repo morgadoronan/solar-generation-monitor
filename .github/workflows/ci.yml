@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+        with:
+          enable-cache: true
+      - name: Install locked dependencies
+        run: >-
+          uv sync --frozen --no-editable
+          --reinstall-package solar-generation-monitor
+      - name: Run tests and repository secret scan
+        run: uv run --frozen --no-sync pytest
+      - name: Run Ruff
+        run: uv run --frozen --no-sync ruff check .
+      - name: Run mypy
+        run: uv run --frozen --no-sync mypy src
+      - name: Build distributions
+        run: uv build
+      - name: Parse workflow and Dependabot YAML
+        run: >-
+          ruby -e 'require "yaml"; Dir[".github/**/*.{yml,yaml}"].each {
+          |path| raise "invalid YAML: #{path}" unless YAML.parse_file(path) }'

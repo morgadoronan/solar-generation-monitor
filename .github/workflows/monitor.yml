@@ -1,0 +1,91 @@
+name: Solar Monitor
+
+on:
+  schedule:
+    - cron: "7,37 9-21 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Do not use production state or send notifications
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  dry-run:
+    if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: solar-monitor-dry-${{ github.workflow }}-${{ github.run_id }}
+      cancel-in-progress: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+      - name: Install locked dependencies
+        run: >-
+          uv sync --frozen --no-editable
+          --reinstall-package solar-generation-monitor
+      - name: Run isolated dry monitor
+        run: uv run --frozen --no-sync python -m solar_monitor monitor --dry-run
+
+  live:
+    if: >-
+      (github.event_name == 'schedule' || inputs.dry_run == false) &&
+      vars.ENABLE_LIVE_MONITORING == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    concurrency:
+      group: solar-monitor-production
+      cancel-in-progress: false
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+      - name: Install locked dependencies
+        run: >-
+          uv sync --frozen --no-editable
+          --reinstall-package solar-generation-monitor
+      - name: Monitor generation
+        env:
+          ENABLE_LIVE_MONITORING: ${{ vars.ENABLE_LIVE_MONITORING }}
+          RENOVIGI_USERNAME: ${{ secrets.RENOVIGI_USERNAME }}
+          RENOVIGI_PASSWORD: ${{ secrets.RENOVIGI_PASSWORD }}
+          RENOVIGI_PLANT_ID: ${{ vars.RENOVIGI_PLANT_ID }}
+          SOLAR_LATITUDE: ${{ vars.SOLAR_LATITUDE }}
+          SOLAR_LONGITUDE: ${{ vars.SOLAR_LONGITUDE }}
+          SOLAR_TIMEZONE: ${{ vars.SOLAR_TIMEZONE }}
+          SOLAR_BASELINE_DATE: ${{ vars.SOLAR_BASELINE_DATE }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GITHUB_TOKEN: ${{ github.token }}
+          SOLAR_STATE_OUTPUT_PATH: ${{ runner.temp }}/solar-monitor-state.json
+        run: uv run --frozen --no-sync python -m solar_monitor monitor
+      - name: Upload successful production state
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: solar-monitor-state-v1
+          path: ${{ runner.temp }}/solar-monitor-state.json
+          if-no-files-found: error
+          retention-days: 90

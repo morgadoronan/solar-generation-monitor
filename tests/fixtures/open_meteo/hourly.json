@@ -1,0 +1,15 @@
+{
+  "timezone": "America/Sao_Paulo",
+  "hourly_units": {
+    "time": "iso8601",
+    "shortwave_radiation": "W/m²",
+    "precipitation": "mm",
+    "cloud_cover": "%"
+  },
+  "hourly": {
+    "time": ["2026-06-07T11:00", "2026-06-07T12:00", "2026-06-07T13:00"],
+    "shortwave_radiation": [610.0, 742.0, 680.0],
+    "precipitation": [0.0, 0.0, 0.0],
+    "cloud_cover": [15.0, 8.0, 12.0]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "timezone": "America/Sao_Paulo",
+  "daily_units": {
+    "time": "iso8601",
+    "sunrise": "iso8601",
+    "sunset": "iso8601",
+    "sunshine_duration": "s",
+    "daylight_duration": "s",
+    "precipitation_sum": "mm",
+    "shortwave_radiation_sum": "MJ/m²"
+  },
+  "daily": {
+    "time": ["2026-06-07"],
+    "sunrise": ["2026-06-07T06:34"],
+    "sunset": ["2026-06-07T17:39"],
+    "sunshine_duration": [28800.0],
+    "daylight_duration": [39900.0],
+    "precipitation_sum": [0.2],
+    "shortwave_radiation_sum": [18.6]
+  }
+}
