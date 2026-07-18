@@ -41,6 +41,8 @@ finish within 30 minutes so overlapping schedules do not create a false run-coun
 
 Successful live runs upload candidate state under the immutable logical name
 `solar-monitor-state-v1`. The application validates source run, branch, version, and checksum.
+New artifacts contain `solar-monitor-state-v1.json`; the reader accepts the initial
+`solar-monitor-state.json` filename only so deployments can migrate without losing state.
 The workflows request 90-day artifact retention, subject to repository and GitHub limits. Expired,
 manually deleted, corrupt, or incompatible state restarts interruption/cleaning evidence
 conservatively and records a coverage gap; it never synthesizes recovery. Any monthly period

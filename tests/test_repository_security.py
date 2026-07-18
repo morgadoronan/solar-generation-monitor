@@ -80,3 +80,10 @@ def test_all_third_party_actions_are_pinned_to_full_commit_shas() -> None:
                 unpinned.append(f"{path.name}: {reference}")
 
     assert not unpinned, "Unpinned third-party Actions:\n" + "\n".join(unpinned)
+
+
+def test_production_workflows_upload_the_canonical_state_filename() -> None:
+    for workflow in ("monitor.yml", "daily.yml", "monthly.yml"):
+        text = (ROOT / ".github" / "workflows" / workflow).read_text(encoding="utf-8")
+        assert "solar-monitor-state-v1.json" in text
+        assert "/solar-monitor-state.json" not in text

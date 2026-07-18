@@ -5,13 +5,16 @@ import json
 import zipfile
 from collections import deque
 from datetime import UTC, datetime
+from email.message import Message
 from pathlib import Path
+from urllib.request import Request
 
 from solar_monitor.github_state import (
     STATE_FILENAME,
     GitHubArtifactStateStore,
     HttpResponse,
     LocalFileStateStore,
+    _CrossOriginRedirectHandler,
 )
 from solar_monitor.state import MonitorState, SourceMetadata, decode_or_bootstrap, encode_state
 
@@ -96,6 +99,45 @@ def test_filters_runs_then_downloads_newest_verified_candidate(tmp_path: Path) -
 
     assert store(tmp_path, transport).load_latest() == state_payload("20")
     assert transport.urls[-1] == "https://download/2"
+
+
+def test_cross_origin_redirect_removes_authorization_header() -> None:
+    request = Request(
+        "https://api.github.com/repos/owner/repo/actions/artifacts/1/zip",
+        headers={"Authorization": "Bearer canary", "Accept": "application/json"},
+    )
+
+    redirected = _CrossOriginRedirectHandler().redirect_request(
+        request,
+        None,
+        302,
+        "Found",
+        Message(),
+        "https://signed-storage.example/artifact.zip",
+    )
+
+    assert redirected is not None
+    assert redirected.get_header("Authorization") is None
+    assert redirected.get_header("Accept") == "application/json"
+
+
+def test_same_origin_redirect_preserves_authorization_header() -> None:
+    request = Request(
+        "https://api.github.com/first",
+        headers={"Authorization": "Bearer canary"},
+    )
+
+    redirected = _CrossOriginRedirectHandler().redirect_request(
+        request,
+        None,
+        302,
+        "Found",
+        Message(),
+        "https://api.github.com/second",
+    )
+
+    assert redirected is not None
+    assert redirected.get_header("Authorization") == "Bearer canary"
 
 
 def test_paginates_and_excludes_current_and_expired_artifacts(tmp_path: Path) -> None:
@@ -246,6 +288,19 @@ def test_invalid_state_payload_is_returned_for_conservative_bootstrap(tmp_path: 
     )
 
     assert store(tmp_path, transport).load_latest() == b"invalid-state"
+
+
+def test_legacy_state_filename_is_read_for_existing_artifact(tmp_path: Path) -> None:
+    payload = state_payload("20")
+    transport = FakeTransport(
+        [
+            response({"artifacts": [artifact(2, 20, "2026-07-02T00:00:00Z")]}),
+            run(),
+            HttpResponse(200, zipped(payload, name="solar-monitor-state.json")),
+        ]
+    )
+
+    assert store(tmp_path, transport).load_latest() == payload
 
 
 def test_local_output_is_atomic_and_round_trips(tmp_path: Path) -> None:

@@ -80,12 +80,12 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GITHUB_TOKEN: ${{ github.token }}
-          SOLAR_STATE_OUTPUT_PATH: ${{ runner.temp }}/solar-monitor-state.json
+          SOLAR_STATE_OUTPUT_PATH: ${{ runner.temp }}/solar-monitor-state-v1.json
         run: uv run --frozen --no-sync python -m solar_monitor evaluate-day
       - name: Upload successful production state
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: solar-monitor-state-v1
-          path: ${{ runner.temp }}/solar-monitor-state.json
+          path: ${{ runner.temp }}/solar-monitor-state-v1.json
           if-no-files-found: error
           retention-days: 90

@@ -12,13 +12,14 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.parse import urlencode, urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from solar_monitor.state import StateValidationError, decode_state
 
 ARTIFACT_NAME = "solar-monitor-state-v1"
 STATE_FILENAME = "solar-monitor-state-v1.json"
+LEGACY_STATE_FILENAME = "solar-monitor-state.json"
 
 
 class GitHubStateError(RuntimeError):
@@ -35,10 +36,32 @@ class HttpTransport(Protocol):
     def get(self, url: str, *, headers: dict[str, str], timeout: float) -> HttpResponse: ...
 
 
+class _CrossOriginRedirectHandler(HTTPRedirectHandler):
+    """Never forward GitHub credentials to a signed artifact storage host."""
+
+    def redirect_request(
+        self,
+        req: Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> Request | None:
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if (
+            redirected is not None
+            and urlsplit(req.full_url).netloc.lower() != urlsplit(newurl).netloc.lower()
+        ):
+            redirected.remove_header("Authorization")
+        return redirected
+
+
 class UrllibTransport:
     def get(self, url: str, *, headers: dict[str, str], timeout: float) -> HttpResponse:
         try:
-            with urlopen(Request(url, headers=headers), timeout=timeout) as response:
+            opener = build_opener(_CrossOriginRedirectHandler())
+            with opener.open(Request(url, headers=headers), timeout=timeout) as response:
                 return HttpResponse(response.status, response.read())
         except HTTPError as error:
             return HttpResponse(error.code, error.read())
@@ -212,7 +235,11 @@ def _extract_state(archive: bytes) -> bytes:
                 and not PurePosixPath(info.filename).is_absolute()
                 and ".." not in PurePosixPath(info.filename).parts
             ]
-            matches = [info for info in safe_files if info.filename == STATE_FILENAME]
+            matches = [
+                info
+                for info in safe_files
+                if info.filename in {STATE_FILENAME, LEGACY_STATE_FILENAME}
+            ]
             if len(matches) != 1 or len(safe_files) != 1:
                 raise GitHubStateError("GitHub state artifact contents were invalid")
             info = matches[0]
