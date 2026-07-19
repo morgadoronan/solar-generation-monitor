@@ -791,7 +791,7 @@ class MonthlyReportService:
                         event_id,
                         NotificationKind.MONTHLY_REPORT,
                         now,
-                        "Relatório solar mensal",
+                        "Monthly solar report",
                         report.telegram_text,
                     )
                 )

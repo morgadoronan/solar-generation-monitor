@@ -52,35 +52,35 @@ class MonthlyReport:
         energy = (
             _decimal(self.total_kwh, 2) + " kWh"
             if generation_days
-            else "indisponível"
+            else "unavailable"
         )
         expected = _optional_measure(self.expected_energy_kwh, "kWh", 2)
         sunlight = _optional_measure(self.no_direct_sun_hours, "h", 1)
         lines = [
-            f"☀️ Relatório Solar — {_month_name(self.month.month)} de {self.month.year}",
+            f"☀️ Solar Report — {_month_name(self.month.month)} {self.month.year}",
             "",
-            f"⚡ Energia gerada: {energy}",
-            f"🎯 Potencial ajustado ao clima: {expected}",
+            f"⚡ Energy generated: {energy}",
+            f"🎯 Climate-adjusted potential: {expected}",
             _performance_summary(self.generation_variance_percent),
-            f"📐 Comparação de desempenho: {self.performance_data_days}/{total_days} dias",
+            f"📐 Performance comparison: {self.performance_data_days}/{total_days} days",
         ]
         if self.estimated_value_brl is not None:
-            lines.append(f"💰 Economia estimada: R$ {_decimal(self.estimated_value_brl, 2)}")
+            lines.append(f"💰 Estimated savings: R$ {_decimal(self.estimated_value_brl, 2)}")
         lines.extend(
             [
-                f"☁️ Horas sem sol direto: {sunlight}",
-                f"🌤️ Dados climáticos: {self.climate_data_days}/{total_days} dias",
+                f"☁️ Hours without direct sunlight: {sunlight}",
+                f"🌤️ Climate data: {self.climate_data_days}/{total_days} days",
                 "",
-                f"🟢 Disponibilidade: {_decimal(self.availability_percent, 2)}%",
-                f"⏸️ Interrupções: {_decimal(self.interruption_hours, 1)} h",
-                f"🏆 Melhor dia: {best}",
-                f"📉 Pior dia: {worst}",
+                f"🟢 Availability: {_decimal(self.availability_percent, 2)}%",
+                f"⏸️ Interruptions: {_decimal(self.interruption_hours, 1)} h",
+                f"🏆 Best day: {best}",
+                f"📉 Worst day: {worst}",
                 "",
-                f"📊 Dados: {generation_days}/{total_days} dias de geração",
+                f"📊 Data: {generation_days}/{total_days} generation days",
                 (
-                    "✅ Cobertura completa"
+                    "✅ Complete coverage"
                     if self.coverage_complete
-                    else f"⚠️ Cobertura parcial: {self.coverage_gap_count} lacuna(s)"
+                    else f"⚠️ Partial coverage: {self.coverage_gap_count} gap(s)"
                 ),
             ]
         )
@@ -156,24 +156,24 @@ def previous_month(now: datetime) -> tuple[date, date]:
 
 def _day_summary(value: DayReport | None) -> str:
     if value is None or value.performance_ratio is None:
-        return "indisponível"
-    return f"{value.day:%d/%m} — {_decimal(value.performance_ratio * 100, 0)}%"
+        return "unavailable"
+    return f"{value.day.isoformat()} — {_decimal(value.performance_ratio * 100, 0)}%"
 
 
 _MONTH_NAMES = (
     "",
-    "Janeiro",
-    "Fevereiro",
-    "Março",
-    "Abril",
-    "Maio",
-    "Junho",
-    "Julho",
-    "Agosto",
-    "Setembro",
-    "Outubro",
-    "Novembro",
-    "Dezembro",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 )
 
 
@@ -182,20 +182,20 @@ def _month_name(month: int) -> str:
 
 
 def _decimal(value: float, places: int) -> str:
-    return f"{value:.{places}f}".replace(".", ",")
+    return f"{value:.{places}f}"
 
 
 def _optional_measure(value: float | None, unit: str, places: int) -> str:
     if value is None:
-        return "indisponível"
+        return "unavailable"
     return f"{_decimal(value, places)} {unit}"
 
 
 def _performance_summary(value: float | None) -> str:
     if value is None:
-        return "📊 Desempenho: indisponível"
+        return "📊 Performance: unavailable"
     if value < 0:
-        return f"📉 Desempenho: {_decimal(abs(value), 2)}% abaixo do potencial"
+        return f"📉 Performance: {_decimal(abs(value), 2)}% below potential"
     if value > 0:
-        return f"📈 Desempenho: {_decimal(value, 2)}% acima do potencial"
-    return "🎯 Desempenho: no potencial esperado"
+        return f"📈 Performance: {_decimal(value, 2)}% above potential"
+    return "🎯 Performance: at expected potential"

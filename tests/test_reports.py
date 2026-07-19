@@ -168,23 +168,23 @@ def test_monthly_report_calculates_and_formats_new_metrics() -> None:
     assert report.days[0].estimated_value_brl == pytest.approx(3.8)
     assert report.days[0].no_direct_sun_hours == pytest.approx(4)
     assert report.telegram_text == (
-        "☀️ Relatório Solar — Junho de 2026\n"
+        "☀️ Solar Report — June 2026\n"
         "\n"
-        "⚡ Energia gerada: 120,00 kWh\n"
-        "🎯 Potencial ajustado ao clima: 150,00 kWh\n"
-        "📉 Desempenho: 20,00% abaixo do potencial\n"
-        "📐 Comparação de desempenho: 30/30 dias\n"
-        "💰 Economia estimada: R$ 114,00\n"
-        "☁️ Horas sem sol direto: 120,0 h\n"
-        "🌤️ Dados climáticos: 30/30 dias\n"
+        "⚡ Energy generated: 120.00 kWh\n"
+        "🎯 Climate-adjusted potential: 150.00 kWh\n"
+        "📉 Performance: 20.00% below potential\n"
+        "📐 Performance comparison: 30/30 days\n"
+        "💰 Estimated savings: R$ 114.00\n"
+        "☁️ Hours without direct sunlight: 120.0 h\n"
+        "🌤️ Climate data: 30/30 days\n"
         "\n"
-        "🟢 Disponibilidade: 100,00%\n"
-        "⏸️ Interrupções: 0,0 h\n"
-        "🏆 Melhor dia: indisponível\n"
-        "📉 Pior dia: indisponível\n"
+        "🟢 Availability: 100.00%\n"
+        "⏸️ Interruptions: 0.0 h\n"
+        "🏆 Best day: unavailable\n"
+        "📉 Worst day: unavailable\n"
         "\n"
-        "📊 Dados: 30/30 dias de geração\n"
-        "✅ Cobertura completa"
+        "📊 Data: 30/30 generation days\n"
+        "✅ Complete coverage"
     )
 
 
@@ -209,9 +209,9 @@ def test_monthly_report_omits_savings_without_rate_and_accepts_zero_rate() -> No
     ).run(date(2026, 6, 1))
 
     assert without_rate.estimated_value_brl is None
-    assert "Economia estimada" not in without_rate.telegram_text
+    assert "Estimated savings" not in without_rate.telegram_text
     assert zero_rate.estimated_value_brl == 0
-    assert "💰 Economia estimada: R$ 0,00" in zero_rate.telegram_text
+    assert "💰 Estimated savings: R$ 0.00" in zero_rate.telegram_text
 
 
 def test_monthly_report_describes_generation_above_adjusted_potential() -> None:
@@ -229,7 +229,7 @@ def test_monthly_report_describes_generation_above_adjusted_potential() -> None:
     ).run(date(2026, 6, 1))
 
     assert report.generation_variance_percent == pytest.approx(20)
-    assert "📈 Desempenho: 20,00% acima do potencial" in report.telegram_text
+    assert "📈 Performance: 20.00% above potential" in report.telegram_text
 
 
 def test_monthly_service_accepts_only_completed_calendar_months() -> None:
@@ -277,7 +277,7 @@ def test_monthly_report_notification_uses_logical_month_deduplication() -> None:
     assert first == duplicate
     assert len(notifier.events) == 1
     assert notifier.events[0].kind.value == "monthly_report"
-    assert notifier.events[0].title == "Relatório solar mensal"
+    assert notifier.events[0].title == "Monthly solar report"
     assert len(store.saved_payloads) == 2
     assert store.payload == store.saved_payloads[-1]
 
@@ -358,9 +358,9 @@ def test_monthly_report_keeps_partial_provider_data_and_marks_missing_days() -> 
     assert report.days[3].complete is False
     assert report.expected_energy_kwh == pytest.approx(280.0)
     assert report.performance_data_days == 28
-    assert "Comparação de desempenho: 28/30 dias" in report.telegram_text
-    assert "29/30 dias de geração" in report.telegram_text
-    assert "29/30 dias" in report.telegram_text
+    assert "Performance comparison: 28/30 days" in report.telegram_text
+    assert "29/30 generation days" in report.telegram_text
+    assert "29/30 days" in report.telegram_text
 
 
 def test_monthly_report_continues_when_performance_baseline_is_unavailable() -> None:
@@ -386,7 +386,7 @@ def test_monthly_report_continues_when_performance_baseline_is_unavailable() -> 
     assert report.worst_day is None
     assert report.expected_energy_kwh is None
     assert report.generation_variance_percent is None
-    assert "Potencial ajustado ao clima: indisponível" in report.telegram_text
+    assert "Climate-adjusted potential: unavailable" in report.telegram_text
 
 
 def test_monthly_report_stops_calling_provider_after_three_consecutive_failures() -> None:
@@ -409,8 +409,8 @@ def test_monthly_report_stops_calling_provider_after_three_consecutive_failures(
     assert report.total_kwh == 0
     assert report.coverage_complete is False
     assert report.coverage_gap_count == 30
-    assert "0/30 dias de geração" in report.telegram_text
-    assert "Energia gerada: indisponível" in report.telegram_text
+    assert "0/30 generation days" in report.telegram_text
+    assert "Energy generated: unavailable" in report.telegram_text
 
 
 def test_monthly_report_does_not_hide_rejected_credentials_as_missing_days() -> None:
