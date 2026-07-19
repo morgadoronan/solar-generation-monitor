@@ -75,6 +75,9 @@ def test_primary_date_and_month_flags_parse() -> None:
     assert parser.parse_args(["report-month", "--month", "2026-06"]).month.isoformat() == (
         "2026-06-01"
     )
+    assert parser.parse_args(
+        ["report-month", "--force-notification"]
+    ).force_notification is True
 
 
 def test_configuration_errors_have_a_safe_operational_category(capsys: object) -> None:

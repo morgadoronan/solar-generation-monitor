@@ -58,6 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--dry-run", action="store_true")
     report = subparsers.add_parser("report-month")
     report.add_argument("--month", type=_month)
+    report.add_argument("--force-notification", action="store_true")
     report.add_argument("--dry-run", action="store_true")
     return parser
 
@@ -126,6 +127,7 @@ def main(argv: Sequence[str] | None = None, *, env: dict[str, str] | None = None
                 notifier=notifier,
                 baseline_day=config.baseline_day,
                 energy_rate_brl_per_kwh=config.energy_rate_brl_per_kwh,
+                force_notification=args.force_notification,
                 csv_path=Path(
                     values.get(
                         "SOLAR_REPORT_OUTPUT_PATH",
@@ -210,6 +212,7 @@ def _run_dry(args: argparse.Namespace) -> object:
         source=source,
         plant_id=DRY_RUN_PLANT_ID,
         timezone=DRY_RUN_TIMEZONE,
+        force_notification=args.force_notification,
         csv_path=None,
     ).run(args.month)
 

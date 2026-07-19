@@ -559,6 +559,7 @@ class MonthlyReportService:
         notifier: NotificationProvider | None = None,
         baseline_day: date = DEFAULT_BASELINE_DAY,
         energy_rate_brl_per_kwh: float | None = None,
+        force_notification: bool = False,
         clock: Clock | None = None,
     ) -> None:
         self._generation = generation
@@ -575,6 +576,7 @@ class MonthlyReportService:
         ):
             raise ValueError("energy rate must be finite and non-negative")
         self._energy_rate_brl_per_kwh = energy_rate_brl_per_kwh
+        self._force_notification = force_notification
         self._clock = clock or (lambda: datetime.now(UTC))
 
     def run(self, month: date | None = None) -> MonthlyReport:
@@ -784,7 +786,8 @@ class MonthlyReportService:
             write_csv_atomic(self._csv_path, report)
         state = replace(state, generated_at=now, source=self._source)
         event_id = deterministic_event_id("monthly_report", start, self._plant_id)
-        if all(item.event_id != event_id for item in state.event_history):
+        already_recorded = any(item.event_id == event_id for item in state.event_history)
+        if self._force_notification or not already_recorded:
             if self._notifier is not None:
                 self._notifier.send(
                     Notification(
@@ -795,13 +798,14 @@ class MonthlyReportService:
                         report.telegram_text,
                     )
                 )
-            state = replace(
-                state,
-                event_history=(
-                    *state.event_history,
-                    EventRecord(event_id, EventKind.MONTHLY_REPORT, now),
-                ),
-            )
+            if not already_recorded:
+                state = replace(
+                    state,
+                    event_history=(
+                        *state.event_history,
+                        EventRecord(event_id, EventKind.MONTHLY_REPORT, now),
+                    ),
+                )
         # Every successful invocation must refresh the upload artifact. Notification
         # deduplication must not suppress state output on a rerun.
         self._store.save(encode_state(prune_state(state, as_of=now)))

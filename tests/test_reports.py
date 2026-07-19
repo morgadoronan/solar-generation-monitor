@@ -11,10 +11,12 @@ from solar_monitor.reports import DayReport, MonthlyReport, previous_month, rend
 from solar_monitor.service import MonthlyReportService
 from solar_monitor.state import (
     CoverageGap,
+    EventKind,
     InterruptionEvent,
     InterruptionKind,
     MonitorState,
     SourceMetadata,
+    decode_state,
     encode_state,
 )
 
@@ -280,6 +282,34 @@ def test_monthly_report_notification_uses_logical_month_deduplication() -> None:
     assert notifier.events[0].title == "Monthly solar report"
     assert len(store.saved_payloads) == 2
     assert store.payload == store.saved_payloads[-1]
+
+
+def test_monthly_report_can_force_notification_without_duplicate_event_history() -> None:
+    provider = CompleteMonthlyProvider()
+    store = SaveSpyStore()
+    notifier = Recorder()
+    common = {
+        "source": SourceMetadata("monthly-run", "Monthly Report"),
+        "plant_id": "plant",
+        "timezone": ZONE,
+        "csv_path": None,
+        "notifier": notifier,
+        "clock": lambda: datetime(2026, 7, 1, 8, tzinfo=ZONE),
+    }
+    MonthlyReportService(provider, provider, store, **common).run(date(2026, 6, 1))
+
+    MonthlyReportService(
+        provider,
+        provider,
+        store,
+        force_notification=True,
+        **common,
+    ).run(date(2026, 6, 1))
+
+    assert len(notifier.events) == 2
+    assert store.payload is not None
+    state = decode_state(store.payload)
+    assert [item.kind for item in state.event_history].count(EventKind.MONTHLY_REPORT) == 1
 
 
 def test_monthly_availability_merges_interruptions_and_counts_only_intersecting_gaps() -> None:
