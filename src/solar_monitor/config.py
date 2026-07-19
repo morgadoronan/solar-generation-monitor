@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -60,6 +61,7 @@ class AppConfig:
     telegram: TelegramConfig | None
     live_monitoring_enabled: bool
     baseline_day: date = date(2026, 6, 7)
+    energy_rate_brl_per_kwh: float | None = None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> AppConfig:
@@ -82,6 +84,7 @@ class AppConfig:
             date(2026, 6, 7),
             alias="SOLAR_BASELINE_DAY",
         )
+        energy_rate = _optional_non_negative_float(values, "SOLAR_ENERGY_RATE_BRL_PER_KWH")
         if enabled and telegram is None:
             raise ConfigError(
                 "TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are required "
@@ -93,6 +96,7 @@ class AppConfig:
             telegram=telegram,
             live_monitoring_enabled=enabled,
             baseline_day=baseline_day,
+            energy_rate_brl_per_kwh=energy_rate,
         )
 
 
@@ -111,6 +115,19 @@ def _coordinate(env: Mapping[str, str], name: str, minimum: float, maximum: floa
         raise ConfigError(f"{name} must be a number") from error
     if not minimum <= value <= maximum:
         raise ConfigError(f"{name} must be between {minimum:g} and {maximum:g}")
+    return value
+
+
+def _optional_non_negative_float(env: Mapping[str, str], name: str) -> float | None:
+    raw = env.get(name, "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError as error:
+        raise ConfigError(f"{name} must be a number") from error
+    if not math.isfinite(value) or value < 0:
+        raise ConfigError(f"{name} must be a finite non-negative number")
     return value
 
 

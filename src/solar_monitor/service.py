@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, time, timedelta
+from math import isfinite
 from pathlib import Path
 from typing import Protocol
 from zoneinfo import ZoneInfo
@@ -557,6 +558,7 @@ class MonthlyReportService:
         csv_path: Path | None,
         notifier: NotificationProvider | None = None,
         baseline_day: date = DEFAULT_BASELINE_DAY,
+        energy_rate_brl_per_kwh: float | None = None,
         clock: Clock | None = None,
     ) -> None:
         self._generation = generation
@@ -568,6 +570,11 @@ class MonthlyReportService:
         self._csv_path = csv_path
         self._notifier = notifier
         self._baseline_day = baseline_day
+        if energy_rate_brl_per_kwh is not None and (
+            not isfinite(energy_rate_brl_per_kwh) or energy_rate_brl_per_kwh < 0
+        ):
+            raise ValueError("energy rate must be finite and non-negative")
+        self._energy_rate_brl_per_kwh = energy_rate_brl_per_kwh
         self._clock = clock or (lambda: datetime.now(UTC))
 
     def run(self, month: date | None = None) -> MonthlyReport:
@@ -645,6 +652,37 @@ class MonthlyReportService:
                 )
                 else None
             )
+            expected_energy = None
+            if (
+                weather is not None
+                and weather.complete
+                and weather.shortwave_radiation_mj_m2 is not None
+                and baseline_generation is not None
+                and baseline_generation.complete
+                and baseline_generation.energy_kwh is not None
+                and baseline_weather is not None
+                and baseline_weather.complete
+                and baseline_weather.shortwave_radiation_mj_m2 is not None
+                and baseline_weather.shortwave_radiation_mj_m2 > 0
+            ):
+                expected_energy = (
+                    baseline_generation.energy_kwh
+                    * weather.shortwave_radiation_mj_m2
+                    / baseline_weather.shortwave_radiation_mj_m2
+                )
+            generation_variance = (
+                100 * (generation.energy_kwh - expected_energy) / expected_energy
+                if generation is not None
+                and generation.energy_kwh is not None
+                and expected_energy is not None
+                and expected_energy > 0
+                else None
+            )
+            no_direct_sun_hours = (
+                (weather.daylight_seconds - weather.sunshine_seconds) / 3600
+                if weather is not None and weather.complete
+                else None
+            )
             days.append(
                 DayReport(
                     cursor,
@@ -655,6 +693,16 @@ class MonthlyReportService:
                     and weather is not None
                     and generation.complete
                     and weather.complete,
+                    expected_energy,
+                    generation_variance,
+                    (
+                        generation.energy_kwh * self._energy_rate_brl_per_kwh
+                        if generation is not None
+                        and generation.energy_kwh is not None
+                        and self._energy_rate_brl_per_kwh is not None
+                        else None
+                    ),
+                    no_direct_sun_hours,
                 )
             )
             cursor += timedelta(days=1)
@@ -674,6 +722,24 @@ class MonthlyReportService:
             if item.started_at < end and (item.ended_at is None or item.ended_at > start)
         ]
         month_seconds = (end - start).total_seconds()
+        expected_days = [item for item in days if item.expected_energy_kwh is not None]
+        comparison_days = [
+            item
+            for item in expected_days
+            if item.complete
+            and item.energy_kwh is not None
+            and item.expected_energy_kwh is not None
+        ]
+        comparison_expected_total = sum(
+            item.expected_energy_kwh or 0 for item in comparison_days
+        )
+        comparison_generation_total = sum(
+            item.energy_kwh or 0 for item in comparison_days
+        )
+        no_direct_sun_days = [
+            item for item in days if item.no_direct_sun_hours is not None
+        ]
+        generation_days = [item for item in days if item.energy_kwh is not None]
         report = MonthlyReport(
             month=start_day,
             total_kwh=sum(item.energy_kwh or 0 for item in days),
@@ -690,6 +756,29 @@ class MonthlyReportService:
             coverage_complete=not gaps and all(item.complete for item in days),
             coverage_gap_count=len(gaps) + sum(not item.complete for item in days),
             days=tuple(days),
+            expected_energy_kwh=(
+                comparison_expected_total if comparison_days else None
+            ),
+            generation_variance_percent=(
+                100
+                * (comparison_generation_total - comparison_expected_total)
+                / comparison_expected_total
+                if comparison_expected_total > 0
+                else None
+            ),
+            estimated_value_brl=(
+                sum(item.energy_kwh or 0 for item in generation_days)
+                * self._energy_rate_brl_per_kwh
+                if generation_days and self._energy_rate_brl_per_kwh is not None
+                else None
+            ),
+            no_direct_sun_hours=(
+                sum(item.no_direct_sun_hours or 0 for item in no_direct_sun_days)
+                if no_direct_sun_days
+                else None
+            ),
+            climate_data_days=len(no_direct_sun_days),
+            performance_data_days=len(comparison_days),
         )
         if self._csv_path is not None:
             write_csv_atomic(self._csv_path, report)
@@ -702,7 +791,7 @@ class MonthlyReportService:
                         event_id,
                         NotificationKind.MONTHLY_REPORT,
                         now,
-                        "Monthly solar report",
+                        "Relatório solar mensal",
                         report.telegram_text,
                     )
                 )

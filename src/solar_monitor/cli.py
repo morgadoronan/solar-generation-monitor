@@ -125,6 +125,7 @@ def main(argv: Sequence[str] | None = None, *, env: dict[str, str] | None = None
                 timezone=config.location.timezone,
                 notifier=notifier,
                 baseline_day=config.baseline_day,
+                energy_rate_brl_per_kwh=config.energy_rate_brl_per_kwh,
                 csv_path=Path(
                     values.get(
                         "SOLAR_REPORT_OUTPUT_PATH",

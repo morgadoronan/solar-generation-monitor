@@ -27,6 +27,23 @@ def test_documented_baseline_date_overrides_default() -> None:
     assert config.baseline_day.isoformat() == "2026-05-31"
 
 
+def test_optional_energy_rate_accepts_zero_and_positive_values() -> None:
+    assert (
+        AppConfig.from_env({**BASE_ENV, "SOLAR_ENERGY_RATE_BRL_PER_KWH": "0"})
+        .energy_rate_brl_per_kwh
+        == 0
+    )
+    assert AppConfig.from_env(
+        {**BASE_ENV, "SOLAR_ENERGY_RATE_BRL_PER_KWH": "0.95"}
+    ).energy_rate_brl_per_kwh == pytest.approx(0.95)
+
+
+@pytest.mark.parametrize("value", ["-0.01", "invalid", "nan", "inf"])
+def test_rejects_invalid_energy_rate(value: str) -> None:
+    with pytest.raises(ConfigError, match="SOLAR_ENERGY_RATE_BRL_PER_KWH"):
+        AppConfig.from_env({**BASE_ENV, "SOLAR_ENERGY_RATE_BRL_PER_KWH": value})
+
+
 def test_secret_does_not_render_its_value() -> None:
     secret = Secret("canary-value")
 

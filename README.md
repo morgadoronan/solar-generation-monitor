@@ -68,6 +68,7 @@ Set these repository variables (never put household-specific values in tracked f
 | `SOLAR_LONGITUDE` | Decimal longitude |
 | `SOLAR_TIMEZONE` | IANA name such as `Area/City` |
 | `SOLAR_BASELINE_DATE` | Calibrated `YYYY-MM-DD` reference day |
+| `SOLAR_ENERGY_RATE_BRL_PER_KWH` | Optional non-negative electricity rate used to estimate monthly savings |
 | `ENABLE_LIVE_MONITORING` | Must equal the lowercase string `true` for live jobs |
 
 Workflows derive `DEFAULT_BRANCH` from GitHub's repository default branch; there is no repository
