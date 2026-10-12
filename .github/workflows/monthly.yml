@@ -84,14 +84,14 @@ jobs:
           SOLAR_REPORT_OUTPUT_PATH: ${{ runner.temp }}/solar-monitor-monthly.csv
         run: uv run --frozen --no-sync python -m solar_monitor report-month
       - name: Upload successful production state
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: solar-monitor-state-v1
           path: ${{ runner.temp }}/solar-monitor-state-v1.json
           if-no-files-found: error
           retention-days: 90
       - name: Upload sanitized monthly CSV
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: solar-monitor-monthly-${{ github.run_id }}
           path: ${{ runner.temp }}/solar-monitor-monthly.csv
